@@ -15,30 +15,30 @@ PS: gcc is requested for building this proxy server.
 
 
 # Usage
-http-proxy:
+* http-proxy:
 
-	* Windows
+	** Windows
 	proxy.exe -h -l your_port
 	
-	* linux
+	** linux
 	./proxy -h -l your_port
 	
-sock5-proxy:
+* sock5-proxy:
 
-	* Windows
+	** Windows
 	proxy.exe -s -l your_port
 	
-	* linux
+	** linux
 	./proxy -s -l your_port
 	
 	PS: the BIND and UDP ASSOCIATE capabilities of sock5 proxy have not been finished yet.
 	
-port mapping:
+* port mapping:
 
-	* Windows
+	** Windows
 	proxy.exe -m -l your_port -a remote_host -p remote_port
 	
-	* linux
+	** linux
 	./proxy -m -l your_port -a remote_host -p remote_port
 	
 	
