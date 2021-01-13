@@ -163,10 +163,14 @@ static int http_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
 		goto exit;
 	}
 
+	snprintf(resp_failed, array_size(resp_failed), "HTTP/%s 500 Internal Server Error\r\n\r\n", version);
+	snprintf(resp_success, array_size(resp_success), "HTTP/%s 200 Connection Established\r\n\r\n", version);
+
 	server = socket(AF_INET, SOCK_STREAM, 0);
 	if (INVALID_SOCKET == server)
 	{
 		err_printf("failed to create socket, error: %d\n", sock_errno);
+		send(client, resp_failed, strlen(resp_failed), 0);
 		goto exit;
 	}
 
@@ -174,6 +178,7 @@ static int http_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
 	if (ERROR_SUCCESS != safe_gethostbyname(host, &addr.sin_addr))
 	{
 		err_printf("failed to anaylize host address, error: %d\n", sock_errno);
+		send(client, resp_failed, strlen(resp_failed), 0);
 		goto exit;
 	}
 
@@ -182,14 +187,12 @@ static int http_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
 
 	if (SOCKET_ERROR == connect(server, (struct sockaddr *)&addr, sizeof(addr)))
 	{
-		len = snprintf(resp_failed, array_size(resp_failed), "HTTP/%s 500 Internal Server Error\r\n\r\n", version);
-		send(client, resp_failed, len, 0);
 		err_printf("failed to connect remote server, error: %d\n", sock_errno);
+		send(client, resp_failed, strlen(resp_failed), 0);
 		goto exit;
 	}
 
-	len = snprintf(resp_success, array_size(resp_success), "HTTP/%s 200 Connection Established\r\n\r\n", version);
-	len = send(client, resp_success, len, 0);
+	len = send(client, resp_success, strlen(resp_success), 0);
 	if (len <= 0)
 	{
 		err_printf("failed to send response to client\n", sock_errno);

@@ -26,8 +26,6 @@
 #include "trace.h"
 #include "sock.h"
 
-#define BUF_SIZE 8192
-
 struct port_mapping_arg {
 	char *address;
 	unsigned short port;

@@ -25,7 +25,7 @@
 
 #include "cross_platform.h"
 
-#define BUF_SIZE 8192
+#define BUF_SIZE 16384
 
 #ifdef __cplusplus
 extern "C" {

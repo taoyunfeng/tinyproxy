@@ -142,5 +142,4 @@ vprintf_t hook_vprintf(vprintf_t func)
 	vprintf_t old = intl_vprintf;
 	intl_vprintf = func ? func : vprintf;
 	return old;
-
 }

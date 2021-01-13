@@ -43,8 +43,7 @@ int safe_gethostbyname(const char *name, struct in_addr *addr)
 	for (ptr = result, found = 0; ptr && !found; ptr = ptr->ai_next)
 	{
 		if (ptr->ai_family == AF_INET &&
-			ptr->ai_socktype == SOCK_STREAM &&
-			ptr->ai_protocol == IPPROTO_TCP)
+			ptr->ai_socktype == SOCK_STREAM)
 		{
 			found = 1;
 			memcpy(addr, &((struct sockaddr_in *)ptr->ai_addr)->sin_addr, sizeof(*addr));
