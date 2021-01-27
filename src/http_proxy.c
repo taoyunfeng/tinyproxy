@@ -49,14 +49,25 @@ static int find_remote_host(const char *response, char *host, int host_bufsz, un
 
 		offs += line_len;
 
-		cnt = sscanf(line, "%[^:]:%[^:]:%s", 
-			flag_string, address_string, port_string);
-		if (cnt < 2)
+		if (strncasecmp(line, "Host", sizeof("Host") - 1) == 0)
 		{
-			continue;
+			cnt = sscanf(line, "%[^:]:%[^:]:%s",
+						 flag_string, address_string, port_string);
+			if (cnt < 2)
+			{
+				continue;
+			}
 		}
-
-		if (strcasecmp(flag_string, "Host") != 0)
+		else if (strncasecmp(line, "CONNECT", sizeof("CONNECT") - 1) == 0)
+		{
+			cnt = sscanf(line, "%s %[^:]:%s",
+						 flag_string, address_string, port_string);
+			if (cnt < 2)
+			{
+				continue;
+			}
+		}
+		else
 		{
 			continue;
 		}

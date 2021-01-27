@@ -48,6 +48,7 @@ char(*dummy_number_of(T(&)[N]))[N];
 #define strdup(s) _strdup(s)
 #endif
 #define strcasecmp _stricmp
+#define strncasecmp _strnicmp
 
 #undef snprintf
 #define snprintf _snprintf

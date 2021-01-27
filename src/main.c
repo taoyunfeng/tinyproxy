@@ -23,17 +23,17 @@
 #include "cross_platform.h"
 #include "trace.h"
 #include "sock.h"
-#include "sock5_proxy.h"
+#include "socks5_proxy.h"
 #include "http_proxy.h"
 #include "port_mapping.h"
 
 #define type_unknown -1
 
-static void sock5_proxy_proc(unsigned short port)
+static void socks5_proxy_proc(unsigned short port)
 {
-	info_printf("sock5 proxy startup, listen port: %hu\n", port);
-	info_printf("running code: %d\n", startup_sock5_proxy(port));
-	info_printf("sock5 proxy end\n");
+	info_printf("socks5 proxy startup, listen port: %hu\n", port);
+	info_printf("running code: %d\n", startup_socks5_proxy(port));
+	info_printf("socks5 proxy end\n");
 }
 
 static void http_proxy_proc(unsigned short port)
@@ -56,7 +56,7 @@ int main(int argc, char *const *argv)
 		{ "listen" , required_argument, NULL, 'l' },
 		{ "address", required_argument, NULL, 'a' },
 		{ "port"   , required_argument, NULL, 'p' },
-		{ "sock5"  , no_argument      , NULL, 's' },
+		{ "socks5" , no_argument      , NULL, 's' },
 		{ "http"   , no_argument      , NULL, 'h' },
 		{ "mapping", no_argument      , NULL, 'm' },
 		{ NULL, 0, NULL, 0 }
@@ -101,7 +101,7 @@ int main(int argc, char *const *argv)
 
 	switch (type)
 	{
-		case 's': sock5_proxy_proc((unsigned short)strtoul(port, NULL, 0)); break;
+		case 's': socks5_proxy_proc((unsigned short)strtoul(port, NULL, 0)); break;
 		case 'm': port_mapping_proc((unsigned short)strtoul(port, NULL, 0), address, (unsigned short)strtoul(des_port, NULL, 0)); break;
 		case 'h': http_proxy_proc((unsigned short)strtoul(port, NULL, 0)); break;
 	}

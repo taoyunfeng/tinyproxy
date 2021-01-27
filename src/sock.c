@@ -174,7 +174,7 @@ int tcp_exchange_data(SOCKET server, SOCKET client)
 	FD_SET(server, &rd_set);
 	FD_SET(client, &rd_set);
 
-	for (; (ret = select(max(fds[0], fds[1]) + 1, &rd_set, NULL, NULL, NULL)) >= 0; )
+	for (; (ret = select((int)(max(fds[0], fds[1]) + 1), &rd_set, NULL, NULL, NULL)) >= 0; )
 	{
 		for (i = 0; i < array_size(fds); i++)
 		{
@@ -196,6 +196,6 @@ int tcp_exchange_data(SOCKET server, SOCKET client)
 	}
 
 exit:
-	info_printf("client: %p out\n", (void *)(ptrdiff_t)client);
+	info_printf("client %p out\n", (void *)(ptrdiff_t)client);
 	return sock_errno;
 }

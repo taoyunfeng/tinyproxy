@@ -20,28 +20,28 @@
  * E-mail: tao.yunfeng@outlook.com
  */
 
-#include "sock5_proxy.h"
+#include "socks5_proxy.h"
 #include "trace.h"
 
 #include "sock.h"
 #include "cross_platform.h"
 
-typedef struct sock5_proxy_auth_request {
+typedef struct socks5_proxy_auth_request {
 
 	unsigned char Ver;
 	unsigned char nMethods;
 	unsigned char Methods[255];
 
-} sock5_proxy_auth_request;
+} socks5_proxy_auth_request;
 
-typedef struct sock5_proxy_auth_response {
+typedef struct socks5_proxy_auth_response {
 
 	unsigned char Ver;
 	unsigned char Method;
 
-} sock5_proxy_auth_response;
+} socks5_proxy_auth_response;
 
-typedef struct sock5_proxy_request {
+typedef struct socks5_proxy_request {
 
 	unsigned char Ver;
 	unsigned char Cmd;
@@ -64,16 +64,16 @@ typedef struct sock5_proxy_request {
 		} Ipv6;
 	};
 
-} sock5_proxy_request;
+} socks5_proxy_request;
 
-#define sock5_proxy_request_size(req) \
-	offsetof(sock5_proxy_request, Ipv4) + \
+#define socks5_proxy_request_size(req) \
+	offsetof(socks5_proxy_request, Ipv4) + \
 	((req)->Atyp == IP_V4_ADDRESS ? 6 : \
 	 (req)->Atyp == IP_V6_ADDRESS ? 18 : \
 	 (req)->DomainName.Len + 2)
 
 
-typedef struct sock5_proxy_reply {
+typedef struct socks5_proxy_reply {
 
 	unsigned char Ver;
 	unsigned char Rep;
@@ -97,23 +97,23 @@ typedef struct sock5_proxy_reply {
 		} Ipv6;
 	};
 
-} sock5_proxy_reply;
+} socks5_proxy_reply;
 
-#define sock5_proxy_reply_size(rep) \
-	offsetof(sock5_proxy_reply, Ipv4) + \
+#define socks5_proxy_reply_size(rep) \
+	offsetof(socks5_proxy_reply, Ipv4) + \
 	((rep)->Atyp == IP_V4_ADDRESS ? 6 : \
 	 (rep)->Atyp == IP_V6_ADDRESS ? 18 : \
 	 (rep)->DomainName.Len + 2)
 
-static int nt_sock5_get_request(SOCKET client, sock5_proxy_request *conn_req)
+static int nt_socks5_get_request(SOCKET client, socks5_proxy_request *conn_req)
 {
 	char buf[BUF_SIZE] = { 0 };
 	int len;
 	int ret;
 
 	ret = -1;
-	len = recv(client, (char *)conn_req, offsetof(sock5_proxy_request, Ipv4), 0);
-	if (len != offsetof(sock5_proxy_request, Ipv4))
+	len = recv(client, (char *)conn_req, offsetof(socks5_proxy_request, Ipv4), 0);
+	if (len != offsetof(socks5_proxy_request, Ipv4))
 	{
 		err_printf("failed to recv connection request, error: %d\n", sock_errno);
 		goto exit;
@@ -142,7 +142,7 @@ static int nt_sock5_get_request(SOCKET client, sock5_proxy_request *conn_req)
 			}
 
 			len = recv(client, (char *)conn_req +
-				offsetof(sock5_proxy_request, DomainName) + 1,
+				offsetof(socks5_proxy_request, DomainName) + 1,
 				conn_req->DomainName.Len + sizeof(unsigned short), 0);
 			if (len != conn_req->DomainName.Len + sizeof(unsigned short))
 			{
@@ -165,27 +165,29 @@ exit:
 	return ret;
 }
 
-static SOCKET nt_sock5_handle_connect(SOCKET client, sock5_proxy_request *conn_req)
+static SOCKET nt_socks5_handle_connect(SOCKET client, socks5_proxy_request *conn_req)
 {
 	int len;
 	int addr_len;
 	char ipaddr[64];
+	char fulladdr[1024];
 	char buf[BUF_SIZE] = { 0 };
 	char *domainname = NULL;
-	sock5_proxy_reply conn_rep = { 0 };
-	struct sockaddr_in addr = { 0 };
+	socks5_proxy_reply conn_rep = { 0 };
+	struct sockaddr_in local_addr = { 0 };
+	struct sockaddr_in remote_addr = { 0 };
 	SOCKET server = INVALID_SOCKET;
 
 	switch (conn_req->Atyp)
 	{
 		case IP_V4_ADDRESS:
 		{
-			addr.sin_addr.s_addr = *(unsigned int *)conn_req->Ipv4.Addr;
-			addr.sin_port        = conn_req->Ipv4.Port;
-			addr.sin_family      = AF_INET;
+			remote_addr.sin_addr.s_addr = *(unsigned int *)conn_req->Ipv4.Addr;
+			remote_addr.sin_port        = conn_req->Ipv4.Port;
+			remote_addr.sin_family      = AF_INET;
 
-			inet_ntop(AF_INET, &addr.sin_addr, ipaddr, sizeof(ipaddr));
-			info_printf("client: %p, sock5 ipv4, address: %s:%hu\n", (void *)(ptrdiff_t)client, ipaddr, ntohs(addr.sin_port));
+			inet_ntop(AF_INET, &remote_addr.sin_addr, ipaddr, sizeof(ipaddr));
+			snprintf(fulladdr, sizeof(fulladdr), "%s:%hu", ipaddr, ntohs(remote_addr.sin_port));
 
 			break;
 		}
@@ -195,17 +197,18 @@ static SOCKET nt_sock5_handle_connect(SOCKET client, sock5_proxy_request *conn_r
 			domainname[conn_req->DomainName.Len] = '\0';
 			memcpy(domainname, conn_req->DomainName.url, conn_req->DomainName.Len);
 
-			if (ERROR_SUCCESS != safe_gethostbyname(domainname, &addr.sin_addr))
+			if (ERROR_SUCCESS != safe_gethostbyname(domainname, &remote_addr.sin_addr))
 			{
 				err_printf("failed to analyze domain name: %s, error: %d\n", domainname, sock_errno);
 				goto exit;
 			}
 
-			addr.sin_port = *(unsigned char *)(conn_req->DomainName.url + conn_req->DomainName.Len);
-			addr.sin_family = AF_INET;
+			remote_addr.sin_port = *(unsigned short *)(conn_req->DomainName.url + conn_req->DomainName.Len);
+			remote_addr.sin_family = AF_INET;
 
-			inet_ntop(AF_INET, &addr.sin_addr, ipaddr, sizeof(ipaddr));
-			info_printf("client: %p, sock5 ipv4, address: %s(%s):%hu\n", (void *)(ptrdiff_t)client, domainname, ipaddr, ntohs(addr.sin_port));
+			inet_ntop(AF_INET, &remote_addr.sin_addr, ipaddr, sizeof(ipaddr));
+			snprintf(fulladdr, sizeof(fulladdr), "%s(%s):%hu", domainname, ipaddr, ntohs(remote_addr.sin_port));
+
 			break;
 
 		}
@@ -224,42 +227,40 @@ static SOCKET nt_sock5_handle_connect(SOCKET client, sock5_proxy_request *conn_r
 	}
 
 	conn_rep.Ver  = conn_req->Ver;
-	conn_rep.Atyp = IP_V4_ADDRESS;
+	conn_rep.Atyp = conn_req->Atyp;
 	conn_rep.Rsv  = 0;
 	conn_rep.Rep  = REPLY_HOST_REFUSED;
+	memcpy(&conn_rep.Ipv4, &conn_req->Ipv4, sizeof(socks5_proxy_reply) - offsetof(socks5_proxy_reply, Ipv4));
 
-	if (SOCKET_ERROR == connect(server, (struct sockaddr *)&addr, sizeof(addr)))
+	if (SOCKET_ERROR == connect(server, (struct sockaddr *)&remote_addr, sizeof(remote_addr)))
 	{
-		send(client, (char *)&conn_rep, sock5_proxy_reply_size(&conn_rep), 0);
+		send(client, (char *)&conn_rep, socks5_proxy_reply_size(&conn_rep), 0);
 		closesocket(server);
-		err_printf("failed to connect server, error: %d\n", sock_errno);
+		err_printf("failed to connect server %s, error: %d\n", fulladdr, sock_errno);
 		goto exit;
 	}
 
-	conn_rep.Atyp = IP_V4_ADDRESS;
 	conn_rep.Rep = REPLY_SUCCEEDED;
-	addr_len = sizeof(addr);
-	getpeername(client, (struct sockaddr *)&addr, &addr_len);
-	memcpy(conn_rep.Ipv4.Addr, &addr.sin_addr, sizeof(addr.sin_addr));
-	conn_rep.Ipv4.Port = addr.sin_port;
-
-	inet_ntop(AF_INET, &addr.sin_addr, ipaddr, sizeof(ipaddr));
-	info_printf("client: %p, sock5 ipv4, reply address: %s:%hu\n", (void *)(ptrdiff_t)client, ipaddr, ntohs(addr.sin_port));
-
-	len = send(client, (char *)&conn_rep, sock5_proxy_reply_size(&conn_rep), 0);
-	if (len != sock5_proxy_reply_size(&conn_rep))
+	len = send(client, (char *)&conn_rep, socks5_proxy_reply_size(&conn_rep), 0);
+	if (len != socks5_proxy_reply_size(&conn_rep))
 	{
 		closesocket(server);
 		err_printf("failed to reply client, error: %d\n", sock_errno);
 		goto exit;
 	}
 
+	addr_len = sizeof(local_addr);
+	getsockname(server, (struct sockaddr *)&local_addr, &addr_len);
+	inet_ntop(AF_INET, &local_addr.sin_addr, ipaddr, sizeof(ipaddr));
+	info_printf("client %p, socks5 proxy established, remote address: %s, local address: %s:%hu\n",
+		(void *)(ptrdiff_t)client, fulladdr, ipaddr, ntohs(local_addr.sin_port));
+
 exit:
 	if (domainname) free(domainname);
 	return server;
 }
 
-static int nt_sock5_handler_request(SOCKET client, sock5_proxy_request *conn_req)
+static int nt_socks5_handler_request(SOCKET client, socks5_proxy_request *conn_req)
 {
 	SOCKET server = INVALID_SOCKET;
 
@@ -267,7 +268,7 @@ static int nt_sock5_handler_request(SOCKET client, sock5_proxy_request *conn_req
 	{
 		case CMD_CONNECT:
 		{
-			server = nt_sock5_handle_connect(client, conn_req);
+			server = nt_socks5_handle_connect(client, conn_req);
 			if (server == INVALID_SOCKET)
 			{
 				return -1;
@@ -292,36 +293,21 @@ static int nt_sock5_handler_request(SOCKET client, sock5_proxy_request *conn_req
 	return 0;
 }
 
-static int sock5_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
+static int socks5_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
 {
 	char buf[BUF_SIZE] = { 0 };
 	int len;
-	sock5_proxy_auth_request auth_req = { 0 };
-	sock5_proxy_auth_response auth_resp = { 0 };
-	sock5_proxy_request conn_req = { 0 };
+	socks5_proxy_auth_request auth_req = { 0 };
+	socks5_proxy_auth_response auth_resp = { 0 };
+	socks5_proxy_request conn_req = { 0 };
 
-	len = recv(client, (char *)&auth_req, 1, 0);
+	len = recv(client, (char *)&auth_req, sizeof(auth_req), 0);
 	if (len <= 0) 
 	{
-		err_printf("failed to read sock5 identifier, error: %d\n", sock_errno);
+		err_printf("failed to read socks5 identifier, error: %d\n", sock_errno);
 		goto exit;
 	}
 
-	len = recv(client, ((char *)&auth_req) + 1, 1, 0);
-	if (len <= 0)
-	{
-		err_printf("failed to read sock5 identifier, error: %d\n", sock_errno);
-		goto exit;
-	}
-
-	len = recv(client, ((char *)&auth_req) + 2, auth_req.nMethods, 0);
-	if (len <= 0)
-	{
-		err_printf("failed to read sock5 identifier, error: %d\n", sock_errno);
-		goto exit;
-	}
-
-	info_printf("sock5 version: %x\n", auth_req.Ver);
 	if (auth_req.nMethods == 0)
 	{
 		err_printf("no methods\n");
@@ -343,13 +329,13 @@ static int sock5_proxy_handler(void *opaque, SOCKET proxy, SOCKET client)
 		goto exit;
 	}
 
-	if (0 != nt_sock5_get_request(client, &conn_req))
+	if (0 != nt_socks5_get_request(client, &conn_req))
 	{
 		err_printf("failed to recv connection request, error: %d\n", sock_errno);
 		goto exit;
 	}
 
-	if (0 != nt_sock5_handler_request(client, &conn_req))
+	if (0 != nt_socks5_handler_request(client, &conn_req))
 	{
 		err_printf("failed to recv connection request, error: %d\n", sock_errno);
 		goto exit;
@@ -359,7 +345,7 @@ exit:
 	return 0;
 }
 
-int startup_sock5_proxy(unsigned short port)
+int startup_socks5_proxy(unsigned short port)
 {
-	return start_tcp_server(port, sock5_proxy_handler, NULL);
+	return start_tcp_server(port, socks5_proxy_handler, NULL);
 }

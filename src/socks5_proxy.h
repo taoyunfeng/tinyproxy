@@ -20,8 +20,8 @@
  * E-mail: tao.yunfeng@outlook.com
  */
 
-#ifndef _HAVE_SOCK5_H_
-#define _HAVE_SOCK5_H_
+#ifndef _HAVE_socks5_H_
+#define _HAVE_socks5_H_
 
 #include "cross_platform.h"
 
@@ -52,7 +52,7 @@
 extern "C" {
 #endif
 
-	int startup_sock5_proxy(unsigned short port);
+	int startup_socks5_proxy(unsigned short port);
 
 #ifdef __cplusplus
 };

@@ -33,8 +33,10 @@ extern "C" {
 
 	static char *strtrim(char *__string) {
 
-		int i;
-		int len = strlen(__string);
+		size_t i;
+		size_t len;
+
+		len = strlen(__string);
 
 		for (i = 0; i < len && __string[i] == ' '; i++) {}
 		if (i != 0) {
